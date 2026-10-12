@@ -1,0 +1,19 @@
+# dsh-scholar — 学术检索工具插件
+#
+# 四个模型可用工具：paper_search / paper_get / paper_citations / book_search
+- insert:
+    - id: scholar
+      name: '@local/dsh-scholar'
+      config:
+        # OpenAlex / Crossref 的 polite pool 联系邮箱；Unpaywall 也用它。
+        # Unpaywall 强制要求真实邮箱（占位邮箱返回 HTTP 422），而包内默认值是
+        # GitHub noreply 地址，同样会被拒 —— 想让「开放获取 PDF」查询生效，
+        # 请填你自己的邮箱。留空时其余三个工具照常工作，paper_get 会在拿不到
+        # 全文时明确提示你去配置。
+        # mailto: you@example.com
+
+        # Semantic Scholar 无 key 时限流很紧（实测 HTTP 429）；申请到 key 填这里。
+        semanticScholarApiKey: ''
+
+        # 单条摘要注入上下文的字符上限。
+        maxAbstractChars: 500

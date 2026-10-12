@@ -1,0 +1,45 @@
+{
+  "name": "@local/dsh-sidebar-tidy",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Caps and scrolls the DSH Web sidebar plugin-action area, shrinks the inline pairing QR code and tightens the brand row, so the workspace and session list stays reachable when footer plugins grow tall.",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cjrrrrrrrr/dsh-plugins.git",
+    "directory": "packages/dsh-sidebar-tidy"
+  },
+  "homepage": "https://github.com/Cjrrrrrrrr/dsh-plugins/tree/main/packages/dsh-sidebar-tidy#readme",
+  "bugs": {
+    "url": "https://github.com/Cjrrrrrrrr/dsh-plugins/issues"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "sidebar",
+    "css",
+    "layout",
+    "web-ui"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  }
+}

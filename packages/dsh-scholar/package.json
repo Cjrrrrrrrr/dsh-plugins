@@ -1,0 +1,59 @@
+{
+  "name": "@local/dsh-scholar",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Academic search tools for DeepSeek Harness: paper_search, paper_get, paper_citations and book_search over OpenAlex, arXiv, Crossref, Semantic Scholar and PubMed, with open-access PDF resolution through Unpaywall.",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./lib/sources.js": {
+      "default": "./lib/sources.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cjrrrrrrrr/dsh-plugins.git",
+    "directory": "packages/dsh-scholar"
+  },
+  "homepage": "https://github.com/Cjrrrrrrrr/dsh-plugins/tree/main/packages/dsh-scholar#readme",
+  "bugs": {
+    "url": "https://github.com/Cjrrrrrrrr/dsh-plugins/issues"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "paper",
+    "literature",
+    "openalex",
+    "arxiv",
+    "crossref",
+    "semantic-scholar",
+    "pubmed",
+    "unpaywall"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0",
+    "@deepseek-ai/schemastery": ">=3.18.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

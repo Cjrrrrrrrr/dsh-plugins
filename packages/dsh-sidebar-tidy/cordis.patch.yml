@@ -1,0 +1,7 @@
+# dsh-sidebar-tidy — 纯样式插件
+#
+# 宿主侧只注册一行占位（lib/index.js 的 apply 是空实现），
+# 真正的活儿在浏览器侧 lib/client.js：注入一小段 CSS。
+- insert:
+    - id: sidebar-tidy
+      name: '@local/dsh-sidebar-tidy'
