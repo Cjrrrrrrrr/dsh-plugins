@@ -1,0 +1,39 @@
+# dsh-hiddify — 单独驱动 Hiddify 的 DSH 插件
+#
+# 七个模型可用工具：hiddify_status / hiddify_start / hiddify_stop / hiddify_mode
+#                    / hiddify_nodes / hiddify_search / hiddify_fetch
+#
+# ⚠️ 安装后必须先改 cliPath 与 workDir —— 下面的默认值指向作者本机的安装位置，
+#    你的 Hiddify 装在哪里就改成哪里（Hiddify 没有固定安装路径）。
+- insert:
+    - id: hiddify
+      name: '@local/dsh-hiddify'
+      config:
+        # HiddifyCli.exe 的完整路径（Hiddify 安装目录里就有）
+        cliPath: 'E:\Hiddify\HiddifyCli.exe'
+
+        # Hiddify 的工作目录（即 HiddifyCli.exe 所在目录）
+        workDir: 'E:\Hiddify'
+
+        # 订阅配置 json。留空 = 自动取 %APPDATA%\hiddify\hiddify\configs\ 里
+        # mtime 最新的一个，也就是你在 Hiddify 客户端里最后添加的那份订阅。
+        profilePath: ''
+
+        # 本地混合代理端口（HTTP + SOCKS5 同端口）
+        port: 12399
+
+        # 内核 Clash REST 控制面端口（用于列节点 / 切节点 / 测延迟）
+        clashPort: 6756
+
+        # 默认分流模式：global（全部走代理）/ cn-bypass（国内与内网直连，推荐）/ direct（全直连）
+        mode: 'cn-bypass'
+
+        # 内网直连：把私有网段 ip_cidr 规则放到 route.rules 最前面 → direct
+        lanDirect: true
+
+        # 启动时是否顺带打开 Windows 系统代理。
+        # 默认 false：只起本地端口，不改系统设置，更安全。
+        systemProxy: false
+
+        # 运行时状态与生成的配置存放目录。留空 = <插件目录>/data
+        dataDir: ''

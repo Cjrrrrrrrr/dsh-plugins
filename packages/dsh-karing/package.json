@@ -1,0 +1,56 @@
+{
+  "name": "@local/dsh-karing",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Drive a local Karing installation from DeepSeek Harness without its GUI: start and stop the core, switch split-tunnel mode instantly by repointing the system proxy at one of Karing's three mixed inbounds, rotate exit nodes, and search or fetch pages through the proxy.",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./lib/core.js": {
+      "default": "./lib/core.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cjrrrrrrrr/dsh-plugins.git",
+    "directory": "packages/dsh-karing"
+  },
+  "homepage": "https://github.com/Cjrrrrrrrr/dsh-plugins/tree/main/packages/dsh-karing#readme",
+  "bugs": {
+    "url": "https://github.com/Cjrrrrrrrr/dsh-plugins/issues"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "karing",
+    "proxy",
+    "split-tunnel",
+    "sing-box",
+    "windows"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0",
+    "@deepseek-ai/schemastery": ">=3.18.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

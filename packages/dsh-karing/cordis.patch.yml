@@ -1,0 +1,35 @@
+# dsh-karing — 单独驱动 Karing 的 DSH 插件
+#
+# 七个模型可用工具：karing_status / karing_start / karing_stop / karing_mode
+#                    / karing_nodes / karing_search / karing_fetch
+#
+# ⚠️ 两点必读
+#   1) 本包【不附带】karingService.exe —— 那是 Karing 官方软件，不随本插件分发。
+#      默认从你自己的 Karing 安装读取 exePath；想与 GUI 做端口隔离，可运行
+#        node tools/embed-kernel.mjs
+#      把内核复制进 <插件>/runtime/（复制你自己那份，不是我们分发的）。
+#   2) exePath 的默认值指向作者的安装位置，请按你的实际情况修改。
+- insert:
+    - id: karing
+      name: '@local/dsh-karing'
+      config:
+        # karingService.exe 的完整路径（你自己的 Karing 安装目录里）
+        exePath: 'F:\Karing\karingService.exe'
+
+        # Karing 的数据目录。留空 = %APPDATA%\karing\karing
+        appDataDir: ''
+
+        # 运行时配置副本与内核日志存放目录。留空 = <插件目录>/data
+        dataDir: ''
+
+        # 默认分流模式：rule（私有网段直连、其余走代理，推荐）/ proxy（全走代理）/ direct（全直连）
+        mode: 'rule'
+
+        # 注入 .cn / .com.cn 等国内域名后缀 → direct_out（零外部依赖，不需要下载规则集）
+        cnBypass: true
+
+        # 私有网段与局域网域名 → direct_out，保证内网不断
+        lanDirect: true
+
+        # 启动时是否顺带打开 Windows 系统代理。默认 false：只起本地端口，更安全。
+        systemProxy: false
