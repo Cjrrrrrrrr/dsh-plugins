@@ -1,12 +1,11 @@
 # dsh-plugins
 
-Five plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`).
+Four plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`).
 
 | Plugin | Category | What it does |
 |---|---|---|
 | [dsh-scholar](packages/dsh-scholar) | tools | Four model-facing tools for literature work — `paper_search`, `paper_get`, `paper_citations`, `book_search` — over OpenAlex, arXiv, Crossref, Semantic Scholar and PubMed, with open-access PDF resolution through Unpaywall |
 | [dsh-sidebar-tidy](packages/dsh-sidebar-tidy) | ui | Keeps the Web sidebar workspace and session list clickable when footer plugins grow tall, by capping and scrolling the plugin-action area |
-| [dsh-hiddify](packages/dsh-hiddify) | tools | Drives a local Hiddify installation without its GUI: seven tools to start and stop the core, hot-switch split-tunnel modes, rotate exit nodes, and search or fetch through the proxy |
 | [dsh-karing](packages/dsh-karing) | tools | The same for a local Karing installation, but with **eight** tools and a different split-tunnel model: Karing keeps three mixed inbounds alive, so switching modes just repoints the system proxy at another port — under a second, and the core is never restarted. Also embeds the kernel into the plugin, self-manages the node subscription, and ships a rate-limit / session / anti-bot layer for the search engines it scrapes |
 | [dsh-corpus](packages/dsh-corpus) | tools | Full-text search over a document corpus: a bigram inverted index with simplified↔traditional folding, so **two-character** Chinese queries work (SQLite FTS5 `trigram` needs three and returns nothing for 紫微 or 用神), plus a metadata-vs-content split so index files do not drown out real documents |
 
@@ -18,7 +17,6 @@ Each is a Cordis plugin that declares a `dsh.bundle` manifest, so it installs wi
 ```sh
 dsh plugin add github:Cjrrrrrrrr/dsh-plugins#path:/packages/dsh-scholar
 dsh plugin add github:Cjrrrrrrrr/dsh-plugins#path:/packages/dsh-sidebar-tidy
-dsh plugin add github:Cjrrrrrrrr/dsh-plugins#path:/packages/dsh-hiddify
 dsh plugin add github:Cjrrrrrrrr/dsh-plugins#path:/packages/dsh-karing
 dsh plugin add github:Cjrrrrrrrr/dsh-plugins#path:/packages/dsh-corpus
 ```
@@ -35,16 +33,14 @@ dynamically and degrade gracefully when they are absent, which is why both are
 declared as *optional* peers — installing these plugins never pulls official
 packages into your profile.
 
-`dsh-hiddify` and `dsh-karing` are **Windows only** and expect Hiddify or Karing
-to be installed already. `dsh-hiddify` drives the copy you installed and needs its
-path configured. `dsh-karing` can either do the same or embed a copy of
-`karingService.exe` into `<plugin>/runtime/` via `tools/embed-kernel.mjs` — which
-is what makes it able to run **alongside** the Karing GUI instead of fighting it
-for ports 3065–3067.
+`dsh-karing` is **Windows only** and expects Karing to be installed already. It
+can either drive the copy you installed, or embed a copy of `karingService.exe`
+into `<plugin>/runtime/` via `tools/embed-kernel.mjs` — which is what lets it run
+**alongside** the Karing GUI instead of fighting it for ports 3065–3067.
 
-Nothing in this repository ships Karing's or Hiddify's binaries. `runtime/` and
-`data/` are git-ignored: the kernel copy, the search index and the runtime state
-are all generated locally.
+Nothing in this repository ships Karing's binaries. `runtime/` and `data/` are
+git-ignored: the kernel copy, the search index and the runtime state are all
+generated locally.
 
 ## Repository layout
 
@@ -56,13 +52,6 @@ packages/dsh-scholar/
 packages/dsh-sidebar-tidy/
   lib/client.js         browser half — the injected CSS
   lib/index.js          host half — an empty placeholder
-  cordis.patch.yml      the bundle row
-packages/dsh-hiddify/
-  lib/core.js           HiddifyCli control layer
-  lib/net.js            system-proxy switch + three-way connectivity probe
-  lib/proxy.js          zero-dependency CONNECT-tunnel HTTP client
-  lib/search.js         multi-engine search + HTML-to-text
-  lib/index.js          host half — registers the seven tools
   cordis.patch.yml      the bundle row
 packages/dsh-karing/
   lib/core.js           Karing control layer — service.json discovery, config rewrite, port isolation
