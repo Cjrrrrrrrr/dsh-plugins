@@ -1,0 +1,12 @@
+# dsh-corpus — 命理语料库全文检索
+#
+# 三个工具：corpus_search / corpus_index / corpus_read
+- insert:
+    - id: corpus
+      name: '@local/dsh-corpus'
+      config:
+        # 语料库根目录
+        corpusRoot: 'E:\deepseekharness\mingli-corpus'
+
+        # 索引存放目录；留空 = <插件目录>/data
+        dataDir: ''

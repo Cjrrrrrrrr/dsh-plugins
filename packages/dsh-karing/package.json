@@ -2,7 +2,7 @@
   "name": "@local/dsh-karing",
   "version": "1.0.0",
   "type": "module",
-  "description": "Drive a local Karing installation from DeepSeek Harness without its GUI: start and stop the core, switch split-tunnel mode instantly by repointing the system proxy at one of Karing's three mixed inbounds, rotate exit nodes, and search or fetch pages through the proxy.",
+  "description": "Standalone Karing control plugin for DeepSeek Harness: drive karingService.exe without the GUI, switch split-tunnel modes (rule/proxy/direct) by pointing the system proxy at one of Karing's three mixed inbounds, pick nodes through the Clash API, and search/fetch through the proxy.",
   "main": "./lib/index.js",
   "exports": {
     ".": {
@@ -11,16 +11,16 @@
     "./lib/core.js": {
       "default": "./lib/core.js"
     },
+    "./lib/net.js": {
+      "default": "./lib/net.js"
+    },
+    "./lib/proxy.js": {
+      "default": "./lib/proxy.js"
+    },
+    "./lib/search.js": {
+      "default": "./lib/search.js"
+    },
     "./package.json": "./package.json"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Cjrrrrrrrr/dsh-plugins.git",
-    "directory": "packages/dsh-karing"
-  },
-  "homepage": "https://github.com/Cjrrrrrrrr/dsh-plugins/tree/main/packages/dsh-karing#readme",
-  "bugs": {
-    "url": "https://github.com/Cjrrrrrrrr/dsh-plugins/issues"
   },
   "license": "MIT",
   "keywords": [
@@ -28,10 +28,10 @@
     "dsh-plugin",
     "deepseek-harness",
     "karing",
+    "sing-box",
     "proxy",
     "split-tunnel",
-    "sing-box",
-    "windows"
+    "lan"
   ],
   "dsh": {
     "bundle": {
@@ -52,5 +52,20 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cjrrrrrrrr/dsh-plugins.git",
+    "directory": "packages/dsh-karing"
+  },
+  "homepage": "https://github.com/Cjrrrrrrrr/dsh-plugins/tree/main/packages/dsh-karing#readme",
+  "bugs": {
+    "url": "https://github.com/Cjrrrrrrrr/dsh-plugins/issues"
+  },
+  "files": [
+    "lib/",
+    "tools/",
+    "cordis.patch.yml",
+    "README.md"
+  ]
 }

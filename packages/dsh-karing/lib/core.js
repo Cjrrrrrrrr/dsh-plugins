@@ -241,7 +241,9 @@ export function prepareRuntime({ paths, dataDir, cnBypass = true, lanDirect = tr
 
   // ── service.json（控制面描述）──
   const svc = readService(paths)
-  const workDir = svc?.workDir && svc.workDir.length > 0 ? svc.workDir : join(dataDir, 'work')
+  // work_dir 也内化：默认放插件目录下，不再指向 F:\Karing\data
+  // （实测内核在空 work_dir 下照常工作 —— 那 49MB 是 GUI 的 Flutter 资源，内核不需要）
+  const workDir = join(dataDir, 'work')
   mkdirSync(workDir, { recursive: true })
   const service = {
     ...(svc?.raw ?? {}),

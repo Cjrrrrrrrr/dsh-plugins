@@ -1,0 +1,64 @@
+{
+  "name": "@local/dsh-corpus",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Full-text search over the Chinese-metaphysics corpus: bigram inverted index with simplified/traditional folding (2-char queries work, unlike SQLite FTS5 trigram).",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./lib/store.js": {
+      "default": "./lib/store.js"
+    },
+    "./lib/search.js": {
+      "default": "./lib/search.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "corpus",
+    "search",
+    "chinese",
+    "bigram"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0",
+    "@deepseek-ai/schemastery": ">=3.18.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Cjrrrrrrrr/dsh-plugins.git",
+    "directory": "packages/dsh-corpus"
+  },
+  "homepage": "https://github.com/Cjrrrrrrrr/dsh-plugins/tree/main/packages/dsh-corpus#readme",
+  "bugs": {
+    "url": "https://github.com/Cjrrrrrrrr/dsh-plugins/issues"
+  },
+  "files": [
+    "lib/",
+    "tools/",
+    "cordis.patch.yml",
+    "README.md"
+  ]
+}

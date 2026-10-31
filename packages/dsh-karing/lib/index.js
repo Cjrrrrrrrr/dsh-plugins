@@ -23,6 +23,7 @@ import {
 } from './core.js'
 import { systemProxyStatus, systemProxyOn, systemProxyOff, probeAll, tcpProbe } from './net.js'
 import { multiEngineSearch, fetchPage, ENGINE_NAMES, FOREIGN_ENGINES, DOMESTIC_ENGINES, ENGINES, DEFAULT_ENGINES, relevanceOf } from './search.js'
+import { refreshSubscription } from './subscription.js'
 
 const { defineTool } = await import('@deepseek-ai/dsh-tools').catch(() => ({ defineTool: (d) => d }))
 const schemastery = await import('@deepseek-ai/schemastery').catch(() => ({ default: undefined }))
@@ -214,6 +215,16 @@ export function apply(ctx, rawConfig) {
         `三个入站：direct=${ports.direct ?? '?'} ｜ proxy=${ports.proxy ?? '?'} ｜ **rule=${ports.rule ?? '?'}**`,
         `节点数：${alive?.nodeCount ?? '—'} ｜ 当前节点：${alive === undefined ? '—（内核未跑）' : '(见 karing_nodes)'}`,
         `系统代理：${sp.ok ? `${sp.enabled ? '✅ 开' : '⛔ 关'} ${sp.server ?? ''}` : `读取失败 ${sp.error ?? ''}`}`,
+        ...(() => {
+          // 端口错配自检：Karing GUI 默认用 3065-3067，本插件核心用 3165-3167。
+          // 实测踩过：系统代理指向 3067（GUI 的端口）而 GUI 没跑，于是 google 全挂。
+          const m = /:(\d+)\s*$/.exec(String(sp.server ?? ''))
+          if (m === null) return []
+          const p = Number(m[1])
+          const live = [ports.direct, ports.proxy, ports.rule].filter((x) => Number.isSafeInteger(x))
+          if (live.includes(p)) return []
+          return [`  ⚠️ 端口错配：系统代理指向 ${p}，但内核实际监听 ${live.join('/')} —— 会全部连不上！用 karing_mode action 修`]
+        })(),
         `  绕过白名单：${sp.override === undefined ? '—' : `${sp.override.split(';').length} 条（含内网段：${/192\.168\.\*/.test(sp.override) ? '✅' : '❌'}）`}`,
         `内网直连：${alive === undefined ? '—' : '✅ 配置含 ip_is_private → direct'}（网段 ${LAN_CIDRS.slice(0, 4).join(', ')} …）`,
         `国内直连：${cfg.cnBypass ? `✅ 注入 ${CN_SUFFIXES.join('/')} → direct` : '⛔ 关闭'}`,
@@ -384,12 +395,65 @@ export function apply(ctx, rawConfig) {
     },
   }))
 
+
+  ctx.tools.register(defineTool({
+    name: 'karing_subscription',
+    description: [
+      '查看 / 刷新节点订阅 —— 插件自己拉订阅、自己解析节点、自己更新自有配置，不依赖 Karing GUI。',
+      'action=status 看订阅地址、上次刷新时间、当前节点数与流量余量；',
+      'action=refresh 拉取订阅并写回 <插件>/data/core.json（保留路由规则），之后需重启内核加载新节点。',
+      '支持 hysteria2 与 vless(REALITY) 两种协议；解析不出的节点会被跳过并如实报告。',
+    ].join(''),
+    parameters: {
+      action: { type: 'string', description: 'status（默认）/ refresh。' },
+      url: { type: 'string', description: 'action=refresh 时可指定订阅地址（会记到插件名下）。' },
+    },
+    output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: v }] },
+    timeoutMs: 120000,
+    isConcurrencySafe: () => false,
+    async execute(args) {
+      const action = String(args?.action ?? 'status')
+      const subStatePath = join(cfg.dataDir, 'subscription.json')
+      const corePath = join(cfg.dataDir, 'core.json')
+      const own = existsSync(subStatePath) ? JSON.parse(readFileSync(subStatePath, 'utf8')) : undefined
+      const core = existsSync(corePath) ? JSON.parse(readFileSync(corePath, 'utf8')) : undefined
+      const nodeCount = core === undefined ? 0 : (core.outbounds ?? []).filter((o) => !['direct', 'block', 'urltest', 'selector'].includes(o.type)).length
+
+      if (action === 'refresh') {
+        const alive = await coreAlive(cfg)
+        const proxyPort = alive?.ports?.proxy ?? PLUGIN_PORTS.proxy
+        const r = await refreshSubscription({ proxyPort, dataDir: cfg.dataDir, explicitUrl: String(args?.url ?? '') })
+        if (!r.ok) return `karing_subscription 刷新失败：${r.error}`
+        return [
+          `✅ 订阅已刷新（来源：${r.from === 'plugin' ? '插件自持' : r.from === 'cli' ? '命令行指定' : 'Karing GUI 配置'}）`,
+          `${r.url.slice(0, 100)}`,
+          `HTTP 200 / ${r.bytes} 字节 ｜ 节点 ${r.nodeCount} 个` + (r.traffic !== undefined ? ` ｜ 流量 已用 ${r.traffic.usedGB} GB / 共 ${r.traffic.totalGB} GB ｜ 到期 ${r.traffic.expireAt}` : ''),
+          `差异：新增 ${r.added.length} ｜ 端点变化 ${r.changed.length} ｜ 消失 ${r.removed.length} ｜ 解析失败 ${r.failed.length}`,
+          r.added.length > 0 ? `新增：${r.added.slice(0, 8).join('、')}` : '',
+          '',
+          `已写回 ${r.corePath}（保留路由规则与 selector 组）`,
+          '⚠️ 需要重启内核才加载新节点：karing_stop → karing_start',
+        ].filter((x) => x.length > 0).join(String.fromCharCode(10))
+      }
+      return [
+        '【Karing 订阅】',
+        `订阅地址：${own?.url ?? '（插件尚未记录，将回落到 Karing GUI 的 karing_subscribe.json）'}`,
+        `来源：${own === undefined ? '—' : `插件自持（${own.adoptedFrom === 'karing-gui' ? '首次从 GUI 采纳' : own.adoptedFrom}，${String(own.adoptedAt ?? '').slice(0, 19)}）`}`,
+        `当前配置：${core === undefined ? '⛔ 无插件自有配置' : `${corePath}（节点 ${nodeCount} 个）`}`,
+        '',
+        '用 action=refresh 拉取最新节点；支持 hysteria2 与 vless(REALITY)。',
+      ].join(String.fromCharCode(10))
+    },
+  }))
+
   ctx.tools.register(defineTool({
     name: 'karing_search',
     description: [
       '经 Karing 代理调用多种搜索引擎检索（外网走代理，国内引擎直连），返回标题/链接/摘要，跨引擎按 URL 去重。',
       `外网引擎：${FOREIGN_ENGINES.join(' / ')}。国内引擎：${DOMESTIC_ENGINES.join(' / ')}。`,
       `默认引擎集（按实测可用性排序）：${DEFAULT_ENGINES.join(' / ')}。`,
+      '⚠️ 百度实测「每次成功后立即收紧」，同一 IP 短时间只放行一次 → 已限为 **每小时 1 次**，配额用尽会明确报错而不是静默空结果。',
+      '被判定风控（302→wappass / 页面含安全验证）的引擎会进入冷却，冷却期跳过而不是继续打。',
       '每个引擎都内置「代理→直连」双通道降级：代理不通时会自动改走直连。',
       '搜中文专业术语（命理/古籍/术数等）建议加引号精确匹配，如 "铁板神数" 皇极经世。',
     ].join(''),

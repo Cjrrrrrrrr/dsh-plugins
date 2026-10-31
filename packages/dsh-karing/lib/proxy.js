@@ -164,7 +164,9 @@ export async function proxyFetch(target, options = {}) {
     }
     return { ...res, text: res.body.toString('utf8') }
   }
-  throw new Error(`跳转次数超过 ${maxRedirects}：${target}`)
+  // maxRedirects=0 时把 302 原样返回，让调用方自己判断（识别验证页需要看 location）
+  const res = await once(current, opts, maxRedirects + 1)
+  return { ...res, text: res.body.toString('utf8'), redirectExceeded: true }
 }
 
 /** 便捷封装：抓文本页。 */

@@ -3,3 +3,9 @@ node_modules/
 Thumbs.db
 *.log
 *.tgz
+
+# 插件运行时产物：不进仓库
+# - data/    索引、运行时状态、日志、订阅快照（体积随语料增长，且含本机路径）
+# - runtime/ 内化的 karingService.exe（55MB 二进制，应由 tools/embed-kernel.mjs 在本地生成）
+packages/*/data/
+packages/*/runtime/

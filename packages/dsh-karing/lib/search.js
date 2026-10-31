@@ -12,6 +12,10 @@
  *   国内引擎（直连，不走代理）：baidu / so360 / sogou 均 200，中文命理内容覆盖最强
  */
 import { proxyFetch } from './proxy.js'
+import {
+  BROWSER_HEADERS, throttle, ensureSession, detectAntiBot, recordBlocked, recordSuccess,
+  isCoolingDown, cooldownLeft, quotaLeftMs,
+} from './session.js'
 
 /** 引擎定义：build(url) 生成请求地址，parse(html) 抽出结果。 */
 export const ENGINES = {
@@ -48,8 +52,13 @@ export const ENGINES = {
   baidu: {
     label: '百度',
     region: 'domestic',
-    build: (q) => `https://www.baidu.com/s?wd=${encodeURIComponent(q)}&rn=30`,
+    // rn=20：百度一页本来就 10 条，要 30 条既拿不到又最容易触发风控
+    build: (q) => `https://www.baidu.com/s?ie=utf-8&wd=${encodeURIComponent(q)}&rn=20&pn=0`,
     parse: parseBaidu,
+    // 需要先建会话（首页 Set-Cookie），并用浏览器请求头
+    needsSession: true,
+    homeUrl: 'https://www.baidu.com/',
+    extraHeaders: { Referer: 'https://www.baidu.com/' },
   },
   so360: {
     label: '360 搜索',
@@ -62,6 +71,9 @@ export const ENGINES = {
     region: 'domestic',
     build: (q) => `https://www.sogou.com/web?query=${encodeURIComponent(q)}`,
     parse: parseGeneric,
+    needsSession: true,
+    homeUrl: 'https://www.sogou.com/',
+    extraHeaders: { Referer: 'https://www.sogou.com/' },
   },
   // ── 以下三个是「API 型」古籍源：不依赖搜索引擎的爬虫对抗，命中率稳定得多 ──
   wikisource: {
@@ -356,35 +368,91 @@ function parseGeneric(html) {
 export async function searchEngine(engine, query, { proxy, timeoutMs = 20000, signal, forceProxy = false } = {}) {
   const def = ENGINES[engine]
   if (def === undefined) return { engine, ok: false, error: `未知引擎 ${engine}` }
+
+  // ── 0) 配额检查：百度这类「一次一放」的引擎，每小时只给很少几次 ──
+  const quotaWait = quotaLeftMs(engine)
+  if (quotaWait > 0) {
+    return { engine, label: def.label, ok: false, status: 0, via: 'quota', results: [], ms: 0,
+      error: `本小时配额已用完（${Math.ceil(quotaWait / 60000)} 分钟后恢复）。百度实测「成功一次就收紧」，所以只能省着用` }
+  }
+
+  // ── 0b) 冷却检查：被风控过的引擎在冷却期内直接跳过，不再打 ──
+  if (isCoolingDown(engine)) {
+    const sec = Math.ceil(cooldownLeft(engine) / 1000)
+    return { engine, label: def.label, ok: false, status: 0, via: 'cooldown', results: [], ms: 0,
+      error: `风控冷却中（还剩 ${sec}s），本轮跳过。百度/360 这类引擎被打多了会整站验证，需要等它自然恢复` }
+  }
+
   const url = def.build(query)
-  // 三通道策略：
-  //   forceProxy=true → **只走代理**，不降级（「强制外网检索」模式，国内引擎也会被带出国外出口）
-  //   外网引擎        → 先代理、再直连
-  //   国内引擎        → 先直连、再代理
-  // 依据实测：同一天里代理可用→不可用、而 Bing/维基文库直连可用，只认一条路会让整层检索随通道波动而全灭。
   const order = forceProxy
     ? [{ p: proxy, via: 'proxy-forced' }]
     : (def.region === 'foreign'
         ? [{ p: proxy, via: 'proxy' }, { p: undefined, via: 'direct' }]
         : [{ p: undefined, via: 'direct' }, { p: proxy, via: 'proxy' }])
-  const attempts = order.filter((a, i) => i === 0 || a.p !== undefined || order[0].p !== undefined || true)
+
   const started = Date.now()
-  let last = undefined
-  for (const attempt of attempts) {
+  let last
+  for (const attempt of order) {
     if (attempt.via.startsWith('proxy') && (attempt.p === undefined || attempt.p === null)) continue
+
+    // ── 1) 限速：同引擎两次请求之间保证最小间隔 ──
+    await throttle(engine, signal)
+
+    // ── 2) 会话：需要 cookie 的引擎先访问首页 ──
+    let headers = { ...BROWSER_HEADERS, ...(def.extraHeaders ?? {}) }
+    if (def.needsSession === true) {
+      const cookie = await ensureSession(engine, proxyFetch, def.homeUrl, { proxy: attempt.p, signal })
+      if (cookie.length > 0) headers = { ...headers, Cookie: cookie }
+    }
+
     try {
       const perEngineTimeout = def.api === true ? Math.max(timeoutMs, 35000) : timeoutMs
-      const res = await proxyFetch(url, { proxy: attempt.p, timeoutMs: perEngineTimeout, signal, headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' } })
+      const res = await proxyFetch(url, { proxy: attempt.p, timeoutMs: perEngineTimeout, signal, headers, maxRedirects: 0 })
+
+      // ── 3) 验证页识别：不要把它当成「无结果」 ──
+      const anti = detectAntiBot({ status: res.status, headers: res.headers, text: res.text, finalUrl: res.url })
+      if (anti.blocked) {
+        const backoff = recordBlocked(engine)
+        last = { status: res.status, via: attempt.via, blocked: true,
+          error: `被风控：${anti.why}。已进入冷却 ${Math.round(backoff / 60000)} 分钟` }
+        continue
+      }
+
+      if (res.status >= 300 && res.status < 400) {
+        // 普通跳转（非验证页）：跟随一次
+        try {
+          const followed = await proxyFetch(new URL(res.headers.location, url).toString(), { proxy: attempt.p, timeoutMs: perEngineTimeout, signal, headers })
+          const anti2 = detectAntiBot({ status: followed.status, headers: followed.headers, text: followed.text, finalUrl: followed.url })
+          if (anti2.blocked) {
+            const backoff = recordBlocked(engine)
+            last = { status: followed.status, via: attempt.via, blocked: true, error: `被风控：${anti2.why}。已进入冷却 ${Math.round(backoff / 60000)} 分钟` }
+            continue
+          }
+          const results2 = def.parse(followed.text).filter((r) => r.url.startsWith('http')).slice(0, 30)
+          if (followed.status === 200 && results2.length > 0) {
+            recordSuccess(engine)
+            return { engine, label: def.label, ok: true, status: followed.status, bytes: followed.body.length, via: attempt.via, ms: Date.now() - started, results: results2, relevant: relevanceOf(results2, query) }
+          }
+        } catch { /* 忽略，落到下面 */ }
+        last = { status: res.status, via: attempt.via, results: [] }
+        continue
+      }
+
       const results = def.parse(res.text).filter((r) => r.url.startsWith('http')).slice(0, 30)
       if (res.status === 200 && results.length > 0) {
+        recordSuccess(engine)
         const relevant = relevanceOf(results, query)
         return { engine, label: def.label, ok: true, status: res.status, bytes: res.body.length, via: attempt.via, ms: Date.now() - started, results, relevant }
       }
       last = { status: res.status, bytes: res.body.length, via: attempt.via, results: [] }
     } catch (error) {
-      last = { status: 0, via: attempt.via, results: [], error: String(error?.message ?? error).slice(0, 160) }
+      const msg = String(error?.message ?? error)
+      // 网络瞬断（socket hang up / ECONNRESET / timeout）不算风控，不进冷却
+      const transient = /socket hang up|ECONNRESET|ECONNREFUSED|timeout|aborted/i.test(msg)
+      last = { status: 0, via: attempt.via, results: [], error: msg.slice(0, 160), transient }
     }
   }
+
   return {
     engine,
     label: def.label,
@@ -394,8 +462,9 @@ export async function searchEngine(engine, query, { proxy, timeoutMs = 20000, si
     via: last?.via,
     ms: Date.now() - started,
     results: [],
+    blocked: last?.blocked === true,
     error: last?.error ?? (last?.status === 202 || last?.status === 403 || last?.status === 429
-      ? `HTTP ${last.status}：出口 IP 被该引擎限流/挑战（换节点可恢复，见 hiddify_nodes）`
+      ? `HTTP ${last.status}：出口 IP 被该引擎限流/挑战（换节点可恢复，见 karing_nodes）`
       : `HTTP ${last?.status ?? 0} 但未解析出结果（可能无结果、被反爬，或查询词过度限定）`),
   }
 }
