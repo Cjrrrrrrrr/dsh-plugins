@@ -13,7 +13,7 @@
  * 与 Hiddify 版的关键差异：**Karing 一次开三个 mixed 入站**，用「连哪个端口」决定出口，
  * 所以换模式不用重启内核 —— karing_mode 只是把系统代理指到另一个端口，秒切。
  */
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -24,6 +24,7 @@ import {
 import { systemProxyStatus, systemProxyOn, systemProxyOff, probeAll, tcpProbe } from './net.js'
 import { multiEngineSearch, fetchPage, ENGINE_NAMES, FOREIGN_ENGINES, DOMESTIC_ENGINES, ENGINES, DEFAULT_ENGINES, relevanceOf } from './search.js'
 import { refreshSubscription } from './subscription.js'
+import { availableDirs, scanFocusDirs, parseSince, humanSize as humanSizeOf, FOCUS_DIRS, TOPIC_PATTERNS } from './focus.js'
 
 const { defineTool } = await import('@deepseek-ai/dsh-tools').catch(() => ({ defineTool: (d) => d }))
 const schemastery = await import('@deepseek-ai/schemastery').catch(() => ({ default: undefined }))
@@ -442,6 +443,94 @@ export function apply(ctx, rawConfig) {
         `当前配置：${core === undefined ? '⛔ 无插件自有配置' : `${corePath}（节点 ${nodeCount} 个）`}`,
         '',
         '用 action=refresh 拉取最新节点；支持 hysteria2 与 vless(REALITY)。',
+      ].join(String.fromCharCode(10))
+    },
+  }))
+
+
+  ctx.tools.register(defineTool({
+    name: 'karing_sources',
+    description: [
+      '管理**重点扫描目录**并按渠道定向搜集资料 —— 只为浏览器下载 / QQ / 微信三个进料渠道服务，不扫全盘。',
+      'action=list 列出重点目录（含文档数、总量、7 天/30 天新增），按进料优先级排序；',
+      'action=scan 只扫最近变更（since 默认 7d，可写 24h / 30d / all），日常用这个：实测 3.6 秒 vs 全盘数十秒；',
+      'action=topics 查看领域关键词表（紫微/八字/七政/奇门/铁板/邵子/六爻/三式/风水/择日/姓名/相术/称骨）。',
+      '扫描结果按文件名自动归类；需要落盘时配合 qq 风格的复制逻辑（本插件只给清单，落盘用 tools/scan-focus.mjs --copy）。',
+    ].join(''),
+    parameters: {
+      action: { type: 'string', description: 'list（默认）/ scan / topics。' },
+      since: { type: 'string', description: 'scan 的时间窗口：7d / 24h / 30d / all（默认 7d）。' },
+      channel: { type: 'string', description: '只扫某个渠道：browser / qq / wechat / netdisk。' },
+      limit: { type: 'integer', description: '最多返回多少条（默认 40）。' },
+    },
+    output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: v }] },
+    timeoutMs: 600000,
+    isConcurrencySafe: () => true,
+    async execute(args) {
+      const action = String(args?.action ?? 'list')
+      const dirs = availableDirs()
+
+      if (action === 'topics') {
+        return [
+          '【领域关键词表】',
+          ...TOPIC_PATTERNS.map(([t, rx]) => `  ${t.padEnd(10)} ${String(rx).slice(0, 90)}`),
+        ].join(String.fromCharCode(10))
+      }
+
+      if (action === 'scan') {
+        const sinceStr = String(args?.since ?? '7d')
+        const ch = String(args?.channel ?? '')
+        const only = ch.length > 0 ? dirs.filter((d) => d.channel === ch || d.channel.split('/').includes(ch)).map((d) => d.key) : []
+        const res = scanFocusDirs({ only, sinceMs: parseSince(sinceStr), includeAll: sinceStr === 'all' })
+        const limit = Number.isSafeInteger(args?.limit) ? args.limit : 40
+        const lines = [
+          `【定向扫描】最近 ${sinceStr === 'all' ? '全部' : sinceStr}${ch ? ` ｜ 渠道 ${ch}` : ''}`,
+          `扫了 ${res.dirsScanned} 个重点目录，遍历 ${res.scanned} 个文档，命中 ${res.items.length} 个` +
+            (res.skippedOld > 0 ? `（跳过 ${res.skippedOld} 个旧文件）` : ''),
+          '',
+        ]
+        if (Object.keys(res.byChannel).length > 0) {
+          lines.push('按渠道：' + Object.entries(res.byChannel).map(([k, v]) => `${k} ${v}`).join(' ｜ '))
+          lines.push('按领域：' + Object.entries(res.byTopic).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' ｜ '))
+          lines.push('')
+        }
+        for (const it of res.items.slice(0, limit)) {
+          lines.push(`  ${humanSizeOf(it.size).padStart(10)}  [${it.topic}]  ${it.ageDays}天前  ${it.name.slice(0, 56)}`)
+        }
+        if (res.items.length > limit) lines.push(`  … 还有 ${res.items.length - limit} 个`)
+        lines.push('', '落盘：node tools/scan-focus.mjs --since ' + sinceStr + ' --copy')
+        return lines.join(String.fromCharCode(10))
+      }
+
+      // list
+      const rows = []
+      for (const d of dirs) {
+        let n = 0; let sz = 0; let d7 = 0
+        const walk = (dir, depth) => {
+          if (depth > d.maxDepth) return
+          let es
+          try { es = readdirSync(dir, { withFileTypes: true }) } catch { return }
+          for (const e of es) {
+            const full = join(dir, e.name)
+            if (e.isDirectory()) { walk(full, depth + 1); continue }
+            const ext = e.name.slice(e.name.lastIndexOf('.')).toLowerCase()
+            if (!['.pdf', '.docx', '.doc', '.epub', '.zip', '.rar', '.7z', '.txt', '.xls', '.xlsx', '.chm', '.djvu'].includes(ext)) continue
+            try {
+              const st = statSync(full)
+              n += 1; sz += st.size
+              if ((Date.now() - st.mtimeMs) / 86400000 <= 7) d7 += 1
+            } catch { /* 忽略 */ }
+          }
+        }
+        walk(d.realPath, 0)
+        rows.push({ ...d, n, sz, d7 })
+      }
+      return [
+        '【重点扫描目录】按进料优先级排序',
+        '',
+        ...rows.map((r) => `  ${String(r.priority).padStart(2)}  ${r.channel.padEnd(11)} ${r.realPath.padEnd(34)} 文档 ${String(r.n).padStart(5)} ｜ ${humanSizeOf(r.sz).padStart(8)} ｜ 7天 ${String(r.d7).padStart(3)}`),
+        '',
+        '说明：资料主要从 QQ / 微信进来，其次浏览器下载。日常用 action=scan since=7d 即可（3.6 秒）。',
       ].join(String.fromCharCode(10))
     },
   }))
