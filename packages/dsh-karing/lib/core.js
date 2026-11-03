@@ -189,10 +189,22 @@ export function applyRoutingPolicy(config, { cnBypass = true, lanDirect = true }
  */
 export function injectSelector(config, tag = 'dsh_selector') {
   const outs = Array.isArray(config.outbounds) ? config.outbounds : (config.outbounds = [])
-  if (outs.some((o) => o.tag === tag)) return config
   const urltest = outs.find((o) => o.type === 'urltest')
   const nodes = outs.filter((o) => !['direct', 'block', 'urltest', 'selector'].includes(o.type)).map((o) => o.tag)
   if (urltest === undefined || nodes.length === 0) return config
+  const existing = outs.find((o) => o.tag === tag)
+  if (existing !== undefined) {
+    // 订阅刷新后节点端点会整批换掉：selector 必须重建成员表，
+    // 否则会引用已消失的节点，内核启动直接 FATAL（dependency[...] not found）。
+    const wanted = [urltest.tag, ...nodes]
+    const same = Array.isArray(existing.outbounds) && existing.outbounds.length === wanted.length &&
+      existing.outbounds.every((t, i) => t === wanted[i])
+    if (!same) {
+      existing.outbounds = wanted
+      if (!wanted.includes(existing.default)) existing.default = urltest.tag
+    }
+    return config
+  }
   outs.push({ type: 'selector', tag, outbounds: [urltest.tag, ...nodes], default: urltest.tag })
   const route = config.route ?? (config.route = {})
   // final 与「全代理」入站都改走 selector，手动切换才有意义
