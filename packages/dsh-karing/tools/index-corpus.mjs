@@ -24,8 +24,9 @@ if (!existsSync(ROOT)) { console.log(`根目录不存在：${ROOT}`); process.ex
 const files = walk(ROOT)
 const DOC_EXT = new Set(['.pdf','.docx','.doc','.epub','.zip','.rar','.7z','.txt','.xlsx','.xls','.ppt','.pptx','.chm','.djvu','.mobi','.azw3','.caj'])
 const ALL_MD = files.filter((f) => f.name.endsWith('.md') && !f.full.includes('00-索引'))
-const mds = ALL_MD.filter((f) => !f.full.includes('_转换文本'))
+const mds = ALL_MD.filter((f) => !f.full.includes('_转换文本') && !f.full.includes('_OCR文本'))
 const converted = ALL_MD.filter((f) => f.full.includes('_转换文本'))
+const ocr = ALL_MD.filter((f) => f.full.includes('_OCR文本'))
 const docs = files.filter((f) => DOC_EXT.has(require$ext(f.name)) && !f.full.includes('00-索引'))
 function require$ext(n){ const i=n.lastIndexOf('.'); return i<0?'':n.slice(i).toLowerCase() }
 const jsonls = files.filter((f) => f.name.endsWith('.jsonl'))
@@ -62,7 +63,7 @@ const lines = [
   '',
   `> 生成时间：${now}`,
   `> 根目录：\`${ROOT}\``,
-  `> 检索命中合计 **${totalHits}** 条 ｜ 已归档正文 **${mds.length}** 篇 ｜ 群文件资料 **${docs.length}** 个（${(docs.reduce((n,d)=>n+d.size,0)/1073741824).toFixed(2)} GB） ｜ 二进制转文本 **${converted.length}** 篇（另计，见 _转换文本/ 目录）`,
+  `> 检索命中合计 **${totalHits}** 条 ｜ 已归档正文 **${mds.length}** 篇 ｜ 群文件资料 **${docs.length}** 个（${(docs.reduce((n,d)=>n+d.size,0)/1073741824).toFixed(2)} GB） ｜ 二进制转文本 **${converted.length}** 篇 ｜ OCR 补字 **${ocr.length}** 篇（均另计）`,
   '',
   '## 采集方式',
   '',

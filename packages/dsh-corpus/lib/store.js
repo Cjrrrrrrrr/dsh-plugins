@@ -46,6 +46,8 @@ export function fold(text) {
 export function kindOf(relPath, name) {
   if (relPath.includes('00-索引')) return '索引'
   if (relPath.includes('_转换文本')) return 'PDF转换'
+  if (relPath.includes('_OCR文本')) return 'OCR文本'
+  if (relPath.includes('17-开源项目')) return '开源项目'
   if (name.startsWith('古籍-')) return '古籍'
   if (name.startsWith('知乎案例-')) return '案例'
   if (name.startsWith('_')) return '命中记录'
